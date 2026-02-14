@@ -29,5 +29,8 @@ steps:
       - '--set-secrets'
       - 'OPENAI_API_KEY=OPENAI_API_KEY:latest'
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA'
