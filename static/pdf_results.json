@@ -1,0 +1,32 @@
+[
+  {
+    "number": 1,
+    "length": 999,
+    "score": 0.8561988093174683,
+    "content": "5 PNEUMONIA BACTERIANA\n5.1 DEFINIÇÃO E CLASSIFICAÇÃO\nA pneumonia bacteriana é uma infecção aguda do parênquima pulmonar causada porbactérias. É classificada clinicamente com base no local de aquisição, o que guia o tratamentoempírico:Pneumonia Adquirida na Comunidade (PAC): Adquirida fora do ambiente hospitalar oumanifestada nas primeiras 48h de internação.Pneumonia Hospitalar (PAH): Ocorre após 48h de internação.Pneumonia Associada à Ventilação (PAV): Surge mais de 48-72h após intubaçãoendotraqueal.\n5.2 ETIOLOGIA\nO Streptococcus pneumoniae (pneumococo) permanece sendo o agente mais comumda PAC em todo o mundo. Outros patógenos incluem Haemophilus influenzae, Moraxellacatarrhalis e patógenos atípicos como Mycoplasma pneumoniae e Legionella pneumophila.Nas pneumonias hospitalares, a preocupação recai sobre Gram-negativos multirresistentes(Pseudomonas aeruginosa, Klebsiella pneumoniae) e Staphylococcus aureus (incluindoMRSA).Tabela 10 – Escore CURB-65 para Estratificação de Risco na PAC"
+  },
+  {
+    "number": 2,
+    "length": 588,
+    "score": 0.8419499081400266,
+    "content": "as pneumonias bacterianas, com foco nosagentes etiológicos clássicos como Streptococcus pneumoniae, e as pneumonias virais não-COVID, como as causadas pelo vírus Influenza. Para cada condição, são apresentadosprotocolos atualizados de diagnóstico, estratificação de risco (CURB-65) e tratamentoantimicrobiano ou de suporte. Conclui-se que uma abordagem integrada, que valorize tanto aprevenção primária através de hábitos saudáveis e vacinação quanto o diagnóstico diferencialpreciso, é essencial para mitigar a morbimortalidade associada às doenças respiratórias nocenário pós-pandêmico."
+  },
+  {
+    "number": 3,
+    "length": 995,
+    "score": 0.8369547479482125,
+    "content": "para qualquer profissional de saúde que deseje atuar com competência nodiagnóstico e tratamento de doenças pulmonares.No espectro patológico, a distinção entre pneumonias bacterianas, virais clássicas e aCOVID-19 tornou-se um desafio diagnóstico diário. Embora compartilhem sintomas comodispneia, tosse e febre, as vias fisiopatológicas, a evolução clínica e as estratégias terapêuticasdiferem substancialmente. A pneumonia bacteriana, muitas vezes uma complicaçãosecundária ou uma entidade primária fulminante, exige reconhecimento rápido eantibioticoterapia assertiva para evitar a sepse. Por outro lado, as pneumonias virais, incluindoa influenza e o vírus sincicial respiratório (VSR), demandam suporte clínico e, em casosespecíficos, antivirais, com um foco intenso na prevenção vacinal.A COVID-19, por sua vez, introduziu uma nova variável: uma doença sistêmica comtropismo pulmonar, capaz de gerar uma resposta inflamatória desregulada (tempestade decitocinas) e fenômenos trombóticos que"
+  },
+  {
+    "number": 4,
+    "length": 920,
+    "score": 0.836150375344382,
+    "content": "554.5 Tratamento...................................................................................................... 614.6 Complicações e Long COVID.............................................................................. 675 PNEUMONIA BACTERIANA....................................................................................... 705.1 Definição e classificação................................................................................... 705.2 Etiologia e Fisiopatologia.................................................................................. 725.3 Diagnóstico e Escores de Gravidade................................................................... 765.4 Tratamento antimicrobiano empírico.................................................................. 796 PNEUMONIA VIRAL................................................................................................. 856.1 Etiologia e"
+  },
+  {
+    "number": 5,
+    "length": 849,
+    "score": 0.8306936860879492,
+    "content": "5.2 ETIOLOGIA\nO Streptococcus pneumoniae (pneumococo) permanece sendo o agente mais comumda PAC em todo o mundo. Outros patógenos incluem Haemophilus influenzae, Moraxellacatarrhalis e patógenos atípicos como Mycoplasma pneumoniae e Legionella pneumophila.Nas pneumonias hospitalares, a preocupação recai sobre Gram-negativos multirresistentes(Pseudomonas aeruginosa, Klebsiella pneumoniae) e Staphylococcus aureus (incluindoMRSA).Tabela 10 – Escore CURB-65 para Estratificação de Risco na PAC\nCritério Pontos\nConfusão mental 1\nUreia > 50 mg/dL (BUN > 19 mg/dL) 1\nRespiração (FR ≥ 30 irpm) 1\nBlood pressure (PAS < 90 ou PAD ≤ 60 mmHg) 1\n65 anos ou mais 1\nInterpretação: 0-1: Baixo Risco (Ambulatorial); 2: Risco Intermediário (Internação breve);≥3: Alto Risco (Considerar UTI).\nFonte: Lim et al., Thorax, 2003.\n5.4 TRATAMENTO ANTIMICROBIANO EMPÍRICO"
+  }
+]

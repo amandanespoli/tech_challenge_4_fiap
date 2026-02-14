@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+*.pyo
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Dados (serão montados como volumes)
+chromasaude/*
+uploads/*
+data/*
+
+# Manter estrutura de diretórios
+!chromasaude/.gitkeep
+!uploads/.gitkeep
+!data/.gitkeep
+
+# Documentação
+*.md
+ROTEIRO_APRESENTACAO.md
+README.md
+
+# Arquivos temporários
+*.log
+*.tmp
+checkpoint.json
+
+# PDF de documentação
+*.pdf
+
+# Não copiar o .env (será montado ou passado via env_file)
+.env
