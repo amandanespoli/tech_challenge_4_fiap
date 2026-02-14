@@ -18,6 +18,8 @@ steps:
       - 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA'
       - '--region'
       - 'southamerica-east1' # Região de São Paulo
+      - '--timeout'
+      - '300' # Aumenta para 5 minutos o tempo de espera para o container ligar
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
