@@ -42,7 +42,7 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
-EXPOSE 5000
+EXPOSE 8080
 
 # Comando para iniciar a aplicação
 CMD ["python", "chatbot.py"]
