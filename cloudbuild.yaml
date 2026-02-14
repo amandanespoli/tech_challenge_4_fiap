@@ -1,0 +1,33 @@
+steps:
+  # 1. Constrói a imagem Docker baseada no seu Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA', '.']
+
+  # 2. Envia a imagem para o Artifact Registry do Google
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA']
+
+  # 3. Faz o deploy no Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'chatbot-saude-service'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA'
+      - '--region'
+      - 'southamerica-east1' # Região de São Paulo
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '4Gi' # Memória necessária para o modelo de Raio-X
+      - '--cpu'
+      - '2'
+      # Injeta as chaves do Secret Manager (Segurança)
+      - '--set-secrets'
+      - 'OPENAI_API_KEY=OPENAI_API_KEY:latest'
+
+images:
+  - 'gcr.io/$PROJECT_ID/chatbot-saude:$COMMIT_SHA'
