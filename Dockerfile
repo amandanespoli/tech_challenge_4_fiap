@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y \
     ffmpeg \
     libasound2-dev \
     libsndfile1 \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Motivo: 
@@ -42,6 +44,7 @@ RUN useradd -m -u 1000 appuser && \
 
 USER appuser
 
+ENV PORT=8080
 EXPOSE 8080
 
 # Comando para iniciar a aplicação
