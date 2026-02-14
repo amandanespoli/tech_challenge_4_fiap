@@ -683,8 +683,10 @@ if __name__ == '__main__':
     logger.info(f"Ambiente: {os.getenv('ENVIRONMENT', 'development')}")
     logger.info(f"Features: {sum(FEATURES.values())}/{len(FEATURES)} disponíveis")
     
+    port = int(os.environ.get("PORT", 8080))
+
     app.run(
-        host=FLASK_HOST,
-        port=FLASK_PORT,
-        debug=FLASK_DEBUG
+        host='0.0.0.0',
+        port=port,
+        debug=False
     )
