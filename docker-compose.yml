@@ -7,22 +7,21 @@ services:
       dockerfile: Dockerfile
     container_name: chatbot-saude
     ports:
-      - "5000:5000"
+      # PORT em config.py é 8080, mapear para mesmo
+      - "8080:8080"
     volumes:
-      # Persistir dados importantes
-      - ./uploads:/app/uploads
+      # Dados persistentes
       - ./chromasaude:/app/chromasaude
       - ./data:/app/data
-      # Arquivos de configuração (somente leitura)
-      - ./settings.json:/app/settings.json:ro
-      - ./checkpoint.json:/app/checkpoint.json:ro
+      # Settings em volume writable (não readonly)
+      - ./settings.json:/app/settings.json
     environment:
-      - FLASK_ENV=production
+      - ENVIRONMENT=production
       - PYTHONUNBUFFERED=1
+      - PORT=8080
     env_file:
       - .env
     restart: unless-stopped
-    # Limites de recursos
     deploy:
       resources:
         limits:
@@ -31,10 +30,6 @@ services:
         reservations:
           cpus: '1.0'
           memory: 2G
-    # Health check para garantir que a aplicação está funcionando
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      # Usar porta 8080 correta
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]

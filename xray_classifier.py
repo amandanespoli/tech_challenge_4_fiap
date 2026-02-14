@@ -20,16 +20,21 @@ from io import BytesIO
 import logging
 from dotenv import load_dotenv
 
-# Carregar variaveis de ambiente
+# Importar configurações centralizadas
+try:
+    from config import MODEL_PATH, IMAGE_SIZE
+except ImportError:
+    # Fallback se config não importável (development edge case)
+    from pathlib import Path
+    BASE_DIR = Path(__file__).parent
+    MODEL_PATH = BASE_DIR / "Departamento_Medico" / "melhor_modelo.keras"
+    IMAGE_SIZE = (256, 256)
+
 load_dotenv()
 
 # Configuracao de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Constantes
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "Departamento_Medico", "melhor_modelo.keras")
-IMAGE_SIZE = (256, 256)
 
 CLASS_LABELS = {
     0: 'Covid-19',
@@ -77,12 +82,15 @@ class XRayClassifier:
 
             from tensorflow.keras.models import load_model
 
-            if not os.path.exists(MODEL_PATH):
-                logger.error(f"Modelo nao encontrado em: {MODEL_PATH}")
+            # Converter Path para string se necessário
+            model_path_str = str(MODEL_PATH) if not isinstance(MODEL_PATH, str) else MODEL_PATH
+            
+            if not os.path.exists(model_path_str):
+                logger.error(f"Modelo nao encontrado em: {model_path_str}")
                 return
 
-            self.model = load_model(MODEL_PATH)
-            logger.info(f"Modelo de raio-X carregado com sucesso de: {MODEL_PATH}")
+            self.model = load_model(model_path_str)
+            logger.info(f"Modelo de raio-X carregado com sucesso de: {model_path_str}")
 
         except Exception as e:
             logger.error(f"Erro ao carregar modelo de raio-X: {e}")

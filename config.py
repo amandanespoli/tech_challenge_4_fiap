@@ -17,6 +17,9 @@ load_dotenv()
 # Detectar se está rodando em Docker
 IS_DOCKER = os.path.exists('/.dockerenv')
 
+# Detectar se está rodando em Google Cloud Run
+IS_CLOUD_RUN = os.getenv('K_SERVICE') is not None or os.getenv('IS_CLOUD_RUN') == 'true'
+
 # Detectar ambiente (development, staging, production)
 ENVIRONMENT = os.getenv('ENVIRONMENT', 'development')
 IS_PRODUCTION = ENVIRONMENT == 'production'
@@ -31,7 +34,7 @@ BASE_DIR = Path(__file__).parent
 if IS_DOCKER:
     # Paths para container/cloud
     MODEL_PATH = Path("/app/Departamento_Medico/melhor_modelo.keras")
-    CHROMA_PATH = Path("/app/data/chromasaude")
+    CHROMA_PATH = Path("/app/chromasaude")
     UPLOAD_FOLDER = Path("/tmp/uploads")
     DATA_PATH = Path("/app/data")
     TEMPLATES_FOLDER = Path("/app/templates")
@@ -90,7 +93,8 @@ if IS_PRODUCTION and SECRET_KEY == 'dev-secret-key-CHANGE-IN-PRODUCTION':
 
 # Bind em 0.0.0.0 para aceitar conexões externas no container
 FLASK_HOST = '0.0.0.0' if IS_DOCKER else '127.0.0.1'
-FLASK_PORT = int(os.getenv('PORT', 5000))
+# Porto padrão 8080 (cloud-friendly), permitir override via PORT env var
+FLASK_PORT = int(os.getenv('PORT', 8080))
 FLASK_DEBUG = IS_DEVELOPMENT and not IS_DOCKER
 
 # ================================================================================

@@ -1,7 +1,6 @@
 """
-Integra gravador.py e transcrever.py para uso no chatbot.
-Grava audio com sounddevice e transcreve com Whisper API.
-Processa videos de raio-X para classificacao de frames.
+Processamento de vídeo para análise de raio-X frame a frame.
+Remove dependências de pastas legadas (Gravador, Transcrever, Video).
 """
 import sys
 import os
@@ -11,11 +10,9 @@ from PIL import Image
 import shutil
 from collections import Counter
 import numpy as np
+import logging
 
-# Adiciona pastas ao path para imports
-sys.path.insert(0, str(Path(__file__).parent / "Gravador"))
-sys.path.insert(0, str(Path(__file__).parent / "Transcrever"))
-sys.path.insert(0, str(Path(__file__).parent / "Video"))
+logger = logging.getLogger(__name__)
 
 from xray_classifier import get_classifier
 

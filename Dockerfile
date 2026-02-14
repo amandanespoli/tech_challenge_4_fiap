@@ -3,7 +3,8 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8080
 
 # Instalar dependências do sistema necessárias para a aplicação
 RUN apt-get update && apt-get install -y \
@@ -20,35 +21,32 @@ RUN apt-get update && apt-get install -y \
     libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Motivo: 
-# - portaudio19-dev: Necessário para PyAudio
-# - python3-dev, build-essential: Para compilar dependências
-# - ffmpeg: Para processamento de vídeo (processar_video_xray)
-# - libasound2-dev, libsndfile1: Para sounddevice (microfone do PC)
+# Motivo das dependências:
+# - python3-dev, build-essential: compilação de extensões C (alguns pacotes pip)
+# - ffmpeg: processamento de vídeo em gravar_e_transcrever.py
 
 WORKDIR /app
 
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código da aplicação
+# Copiar código
 COPY . .
 
-# Criar diretórios necessários com permissões corretas
-RUN mkdir -p uploads chromasaude data static templates && \
-    chmod 755 uploads chromasaude data static templates
+# Criar diretórios com permissões corretas
+RUN mkdir -p chromasaude data && \
+    chmod 755 chromasaude data
 
-# Motivo: Garante que os diretórios existem e têm permissões adequadas
-
-# Criar usuário não-root
+# Criar usuário não-root por segurança
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
 
 ENV PORT=8080
+# Expor porta 8080 (configurada em config.py)
 EXPOSE 8080
 
-# Comando para iniciar a aplicação
-CMD ["python", "chatbot.py"]
+# Executar init_container.py antes de iniciar a app
+# Valida ambiente e sincroniza ChromaDB do GCS se necessário
+CMD ["sh", "-c", "python init_container.py && python chatbot.py"]

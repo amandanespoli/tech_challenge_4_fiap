@@ -32,7 +32,8 @@ from config import (
     CHROMA_PATH,
     ALLOWED_IMAGE_EXTENSIONS,
     get_feature_status,
-    is_feature_enabled
+    is_feature_enabled,
+    IS_DOCKER  # Adicionar detecção de Docker
 )
 
 # Importar classificador de raio-X
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.config['SECRET_KEY'] = SECRET_KEY
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)  # Garantir que é string
 
 load_dotenv()
 
@@ -88,10 +90,19 @@ class ChatBot:
         pass
 
     def load_settings(self):
-        settings_file = 'settings.json'
-        if os.path.exists(settings_file):
-            with open(settings_file, 'r') as file:
-                return json.load(file)
+        """
+        Carrega settings.json com fallback para defaults.
+        Em container, o arquivo pode estar em volume separado.
+        """
+        settings_file = UPLOAD_FOLDER.parent / 'settings.json'  # Usar config.py path
+        if settings_file.exists():
+            try:
+                with open(settings_file, 'r') as file:
+                    return json.load(file)
+            except Exception as e:
+                logger.warning(f"Erro ao carregar settings: {e}")
+        
+        # Defaults
         return {
             "selected_voice": "alloy",
             "hear_response": True
@@ -517,11 +528,23 @@ def text_to_speech():
 
 @app.route('/save_settings', methods=['POST'])
 def save_settings():
-    data = request.json
-    chatbot.settings.update(data)
-    with open('settings.json', 'w') as file:
-        json.dump(chatbot.settings, file)
-    return jsonify({'status': 'success'})
+    """Salva configurações do usuário."""
+    try:
+        data = request.json
+        chatbot.settings.update(data)
+        
+        # Usar path absoluto de config
+        settings_file = UPLOAD_FOLDER.parent / 'settings.json'
+        settings_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(settings_file, 'w') as file:
+            json.dump(chatbot.settings, file)
+        
+        logger.info(f"Settings salvos em {settings_file}")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Erro ao salvar settings: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 # Instância global do chatbot
 chatbot = ChatBot()

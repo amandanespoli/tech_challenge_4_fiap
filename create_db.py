@@ -1,194 +1,380 @@
 import os
+import sys
 import traceback
 import time
 import json
+import logging
+from pathlib import Path
 from dotenv import load_dotenv
 
 from langchain_community.document_loaders import DirectoryLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
-
+from langchain_core.documents import Document
 from langchain_core.prompts import ChatPromptTemplate
 
-import mimetypes
 import openai
+
+# Configurar logging estruturado para cloud
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-CHROMA_PATH = "chromasaude"
-DATA_PATH = "data"
-CHECKPOINT_FILE = "checkpoint.json"
+# PATHS CLOUD-READY - Suporta desenvolvimento local e container
+BASE_DIR = Path(__file__).parent
+IS_DOCKER = os.path.exists('/.dockerenv')
+
+if IS_DOCKER:
+    # Paths para container
+    CHROMA_PATH = Path("/app/chromasaude")
+    DATA_PATH = Path("/app/data")
+    CHECKPOINT_FILE = Path("/tmp/chroma_checkpoint.json")  # /tmp é persistente apenas durante execução
+else:
+    # Paths para desenvolvimento local
+    CHROMA_PATH = BASE_DIR / "chromasaude"
+    DATA_PATH = BASE_DIR / "data"
+    CHECKPOINT_FILE = BASE_DIR / ".chroma_checkpoint.json"
+
+# Criar diretórios se não existirem
+CHROMA_PATH.mkdir(parents=True, exist_ok=True)
+DATA_PATH.mkdir(parents=True, exist_ok=True)
+
 BATCH_SIZE = 100
 PERSIST_FREQUENCY = 25
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # segundos
 
-def detect_file_type(file_path):
-    try:
-        mime = magic.from_file(file_path, mime=True)
-    except magic.MagicException:
-        mime, _ = mimetypes.guess_type(file_path)
-    return mime
+logger.info(f"Environment: {'Docker' if IS_DOCKER else 'Local'}")
+logger.info(f"Chroma path: {CHROMA_PATH}")
+logger.info(f"Data path: {DATA_PATH}")
 
-def main():
-    global db  # Definir 'db' como global para o teste
+def main(skip_test=False):
+    """
+    Função principal para criar/atualizar ChromaDB.
+    
+    Args:
+        skip_test: Se True, pula o teste do banco (útil em CI/CD)
+    
+    Returns:
+        bool: True se sucesso, False se falha
+    """
     try:
+        logger.info("=" * 60)
+        logger.info("Iniciando criação/atualização do ChromaDB")
+        logger.info("=" * 60)
+        
+        # Validar API key
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("❌ OPENAI_API_KEY não configurada!")
+        logger.info("✅ API Key encontrada")
+        
+        # Carregar documentos
         documents = load_documents()
-        print(f"Total de documentos carregados: {len(documents)}")
-        if documents:
-            chunks = split_text(documents)
-            process_chunks(chunks)
+        if not documents:
+            logger.warning("⚠️ Nenhum documento PDF encontrado em {}".format(DATA_PATH))
+            logger.warning("Para usar o RAG, adicione arquivos .pdf em data/")
+            return False
+        
+        logger.info(f"✅ {len(documents)} documento(s) carregado(s)")
+        
+        # Dividir em chunks
+        chunks = split_text(documents)
+        
+        # Processar chunks
+        process_chunks(chunks)
+        
+        # Teste opcional
+        if not skip_test:
             test_database()
-        else:
-            print("Nenhum documento para processar. Pulando teste do banco de dados.")
+        
+        logger.info("=" * 60)
+        logger.info("✅ ChromaDB criado/atualizado com sucesso!")
+        logger.info("=" * 60)
+        return True
+        
     except Exception as e:
-        print(f"Ocorreu um erro durante a execução do script:")
-        print(str(e))
-        print("\nStack trace completo:")
-        print(traceback.format_exc())
-    finally:
-        print("Script concluído. Pressione Enter para sair.")
-        input()
+        logger.error(f"❌ Erro durante execução: {str(e)}")
+        logger.error(traceback.format_exc())
+        return False
 
 def load_documents():
-    directory_path = DATA_PATH
-    loader = DirectoryLoader(directory_path, glob="**/*.pdf", loader_cls=PyPDFLoader)
-
+    """
+    Carrega arquivos PDF recursivamente do diretório DATA_PATH.
+    
+    Returns:
+        list: Lista de documentos carregados
+    """
+    logger.info(f"Carregando PDFs de {DATA_PATH}...")
+    
+    # Validar se pasta existe e tem arquivos
+    if not DATA_PATH.exists():
+        logger.warning(f"Pasta {DATA_PATH} não existe")
+        return []
+    
+    pdf_files = list(DATA_PATH.glob("**/*.pdf"))
+    if not pdf_files:
+        logger.warning(f"Nenhum arquivo .pdf encontrado em {DATA_PATH}")
+        return []
+    
+    logger.info(f"Encontrados {len(pdf_files)} arquivo(s) PDF")
+    
+    loader = DirectoryLoader(str(DATA_PATH), glob="**/*.pdf", loader_cls=PyPDFLoader)
+    
     documents = []
     try:
-        documents = loader.load()  # Carregar documentos diretamente
-        if not documents:
-            print("Nenhum documento carregado.")
+        documents = loader.load()
+        logger.info(f"✅ {len(documents)} página(s) carregada(s) dos PDFs")
     except Exception as e:
-        print(f"Erro ao carregar documentos: {e}")
-
+        logger.error(f"❌ Erro ao carregar documentos: {e}")
+        raise
+    
     return documents
 
 def split_text(documents):
+    """
+    Divide documentos em chunks com sobreposição para melhor contexto.
+    
+    Args:
+        documents: Lista de documentos do LangChain
+        
+    Returns:
+        list: Lista de chunks
+    """
+    logger.info("Dividindo documentos em chunks...")
+    
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=500,
         length_function=len,
         add_start_index=True,
     )
-
-    # Garantir que documents contém instâncias com o atributo 'page_content'
+    
+    # Garantir que todos os documentos são instâncias Document
     if documents and isinstance(documents[0], dict):
+        logger.warning("Convertendo documentos dict para Document objects...")
         documents = [Document(page_content=doc.get('content', '')) for doc in documents]
-
+    
     chunks = text_splitter.split_documents(documents)
-    print(f"Criados {len(chunks)} chunks de texto.")
+    logger.info(f"✅ {len(chunks)} chunck(s) criado(s)")
+    logger.info(f"   - Exemplo: '{chunks[0].page_content[:100]}...'")
+    
     return chunks
 
 def process_chunks(chunks):
-    global db  # Definir 'db' como global para o teste
+    """
+    Processa chunks em lotes e armazena embeddings no ChromaDB.
+    Implementa retry logic para falhas de API e checkpoint para retomada.
+    
+    Args:
+        chunks: Lista de chunks de texto
+    """
     api_key = os.getenv('OPENAI_API_KEY')
     if not api_key:
-        raise ValueError("A chave API do OpenAI não foi encontrada nas variáveis de ambiente.")
-
-    print(f"Iniciando o processo de salvar no Chroma...")
+        raise ValueError("❌ OPENAI_API_KEY não configurada!")
+    
+    logger.info("Criando embedding function...")
     embedding_function = OpenAIEmbeddings(openai_api_key=api_key)
-    print("Embedding function criada com sucesso.")
-
-    last_processed_chunk = load_checkpoint()
-
-    # Validar checkpoint - se maior que chunks disponíveis, resetar
-    if last_processed_chunk >= len(chunks):
-        print(f"Checkpoint ({last_processed_chunk}) maior que chunks ({len(chunks)}). Resetando...")
-        last_processed_chunk = 0
-
+    
+    # Carregar último checkpoint
+    last_processed = load_checkpoint()
+    
+    if last_processed >= len(chunks):
+        logger.warning(f"Checkpoint inválido ({last_processed} >= {len(chunks)}). Resetando...")
+        last_processed = 0
+        save_checkpoint(0)
+    
+    if last_processed > 0:
+        logger.info(f"Retomando do checkpoint: chunk {last_processed}/{len(chunks)}")
+    
     try:
-        if os.path.exists(CHROMA_PATH):
-            print(f"Atualizando banco de dados existente em {CHROMA_PATH}")
-            db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
+        # Conectar ou criar ChromaDB
+        if CHROMA_PATH.exists() and list(CHROMA_PATH.glob("*")):
+            logger.info(f"✅ Banco existente encontrado em {CHROMA_PATH}")
+            db = Chroma(persist_directory=str(CHROMA_PATH), embedding_function=embedding_function)
         else:
-            print(f"Criando novo banco de dados em {CHROMA_PATH}")
-            db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embedding_function)
-            last_processed_chunk = 0  # Resetar checkpoint para novo banco
-            if os.path.exists(CHECKPOINT_FILE):
-                os.remove(CHECKPOINT_FILE)
-
-        for i in range(last_processed_chunk, len(chunks), BATCH_SIZE):
-            batch = chunks[i:i+BATCH_SIZE]
-            process_batch(db, batch, i, chunks)
-
-        print(f"Salvos {len(chunks)} chunks em {CHROMA_PATH}.")
-
-        # Verificação final
-        collection = db._collection
-        print(f"Número total de documentos no banco de dados: {collection.count()}")
+            logger.info(f"📦 Criando novo banco em {CHROMA_PATH}")
+            db = Chroma(persist_directory=str(CHROMA_PATH), embedding_function=embedding_function)
+            last_processed = 0
         
+        # Processar chunks em lotes
+        logger.info(f"Processando {len(chunks) - last_processed} chunk(s)...")
+        
+        for i in range(last_processed, len(chunks), BATCH_SIZE):
+            batch = chunks[i:i+BATCH_SIZE]
+            process_batch(db, batch, i, len(chunks))
+        
+        # Verificação final
+        try:
+            count = db._collection.count()
+            logger.info(f"✅ Total de documentos no banco: {count}")
+        except:
+            logger.info("✅ Chunks processados com sucesso")
+            
     except Exception as e:
-        print(f"Erro ao salvar no Chroma: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"❌ Erro ao processar chunks: {e}")
+        logger.error(traceback.format_exc())
         raise
 
-def process_batch(db, batch, start_index, chunks):
+def process_batch(db, batch, start_index, total_chunks):
+    """
+    Processa um lote de chunks com retry logic.
+    
+    Args:
+        db: Instância do ChromaDB
+        batch: Lista de chunks
+        start_index: Índice inicial do batch
+        total_chunks: Total de chunks para progresso
+    """
     for i, chunk in enumerate(batch):
         overall_index = start_index + i
-        if overall_index % 10 == 0:
-            print(f"Processando chunk {overall_index+1}/{len(chunks)}...")
-        try:
-            start_time = time.time()
-            db.add_documents([chunk])
-            end_time = time.time()
-            print(f"Tempo para processar chunk {overall_index+1}: {end_time - start_time:.2f} segundos")
-        except openai.error.OpenAIError as oe:
-            print(f"Erro da API OpenAI ao processar chunk {overall_index+1}: {str(oe)}")
-            # Implementar lógica de retry aqui, se necessário
-        except Exception as e:
-            print(f"Erro ao processar chunk {overall_index+1}: {str(e)}")
-            raise
         
+        if overall_index % 10 == 0:
+            progress = (overall_index / total_chunks) * 100
+            logger.info(f"Progresso: {overall_index + 1}/{total_chunks} ({progress:.1f}%)")
+        
+        # Retry logic para falhas de API
+        success = False
+        for attempt in range(MAX_RETRIES):
+            try:
+                start_time = time.time()
+                db.add_documents([chunk])
+                elapsed = time.time() - start_time
+                
+                if elapsed > 2:
+                    logger.debug(f"Chunk {overall_index + 1} demorou {elapsed:.2f}s")
+                
+                success = True
+                break
+                
+            except openai.RateLimitError as e:
+                logger.warning(f"Rate limit no chunk {overall_index + 1} (tentativa {attempt + 1}/{MAX_RETRIES})")
+                if attempt < MAX_RETRIES - 1:
+                    delay = RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                    logger.info(f"Aguardando {delay}s antes de retry...")
+                    time.sleep(delay)
+                else:
+                    raise
+                    
+            except openai.APIError as e:
+                logger.warning(f"Erro da API no chunk {overall_index + 1}: {str(e)}")
+                if attempt < MAX_RETRIES - 1:
+                    time.sleep(RETRY_DELAY)
+                else:
+                    raise
+        
+        if not success:
+            logger.error(f"❌ Falha ao processar chunk {overall_index + 1} após {MAX_RETRIES} tentativas")
+            raise RuntimeError(f"Falha irrecuperável no chunk {overall_index + 1}")
+        
+        # Salvar checkpoint periodicamente
         if (overall_index + 1) % PERSIST_FREQUENCY == 0:
             save_checkpoint(overall_index + 1)
-            print(f"Checkpoint salvo em {overall_index + 1} chunks.")
+            logger.debug(f"Checkpoint salvo: {overall_index + 1}/{total_chunks}")
 
 def load_checkpoint():
-    if os.path.exists(CHECKPOINT_FILE):
-        with open(CHECKPOINT_FILE, 'r') as f:
-            return json.load(f)['last_processed_chunk']
+    """Carrega último checkpoint de progresso."""
+    try:
+        if CHECKPOINT_FILE.exists():
+            with open(CHECKPOINT_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('last_processed_chunk', 0)
+    except Exception as e:
+        logger.warning(f"Erro ao carregar checkpoint: {e}")
+    
     return 0
 
 def save_checkpoint(last_processed_chunk):
-    with open(CHECKPOINT_FILE, 'w') as f:
-        json.dump({'last_processed_chunk': last_processed_chunk}, f)
+    """Salva progresso em checkpoint."""
+    try:
+        with open(CHECKPOINT_FILE, 'w') as f:
+            json.dump({'last_processed_chunk': last_processed_chunk}, f)
+    except Exception as e:
+        logger.warning(f"Erro ao salvar checkpoint: {e}")
 
 def test_database():
-    global db  # Definir 'db' como global para o teste
-    print("\nTestando o banco de dados:")
+    """Testa a integridade do ChromaDB com queries de exemplo."""
+    logger.info("\n" + "=" * 60)
+    logger.info("Testando banco de dados")
+    logger.info("=" * 60)
     
     try:
-        # Teste 1: Verificar o número de documentos
-        print(f"Número de documentos no banco: {db._collection.count()}")
+        api_key = os.getenv('OPENAI_API_KEY')
+        embedding_function = OpenAIEmbeddings(openai_api_key=api_key)
+        db = Chroma(persist_directory=str(CHROMA_PATH), embedding_function=embedding_function)
         
-        # Teste 2: Recuperar alguns documentos aleatórios
-        results = db.similarity_search("", k=2)
-        print("\nAlguns documentos aleatórios do banco:")
-        for doc in results:
-            print(f"- {doc.page_content[:100]}...")
+        # Teste 1: Quantidade de documentos
+        count = db._collection.count()
+        logger.info(f"✅ Documentos armazenados: {count}")
         
-        # Teste 3: Pergunta específica
-        query = "Qual a definição de saúde?"
-        results = db.similarity_search(query, k=2)
+        if count == 0:
+            logger.warning("⚠️ Banco vazio! Adicione PDFs em data/ e reexecute.")
+            return
         
-        print(f"\nResultados para a pergunta: '{query}'")
-        for doc in results:
-            print(f"- {doc.page_content[:200]}...")
+        # Teste 2: Similarity search
+        test_queries = [
+            "saúde pulmonar",
+            "pneumonia",
+            "doença respiratória"
+        ]
         
-        # Teste 4: Usar o modelo de linguagem para responder à pergunta
+        logger.info("\nTestando buscas semânticas:")
+        for query in test_queries:
+            try:
+                results = db.similarity_search_with_relevance_scores(query, k=2)
+                if results:
+                    logger.info(f"  '{query}': {len(results)} resultado(s) (score: {results[0][1]:.2f})")
+                else:
+                    logger.warning(f"  '{query}': nenhum resultado")
+            except Exception as e:
+                logger.warning(f"  '{query}': erro na busca - {e}")
+        
+        # Teste 3: RAG com LLM
+        logger.info("\nTestando RAG com modelo:")
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        prompt = ChatPromptTemplate.from_template(
-            "Responda à seguinte pergunta com base no contexto fornecido:\n\nPergunta: {query}\n\nContexto: {context}\n\nResposta:"
-        )
         
-        context = "\n".join([doc.page_content for doc in results])
-        response = llm.invoke(prompt.format(query=query, context=context))
+        query = "O que é pneumonia?"
+        results = db.similarity_search_with_relevance_scores(query, k=3)
         
-        print(f"\nResposta gerada pelo modelo:")
-        print(response.content)
+        if results:
+            context = "\n".join([doc.page_content for doc, _ in results])
+            prompt = ChatPromptTemplate.from_template(
+                "Com base no contexto fornecido, responda brevemente:\n\n"
+                "Contexto: {context}\n\n"
+                "Pergunta: {question}\n\n"
+                "Resposta (máximo 2 linhas):"
+            )
+            
+            response = llm.invoke(prompt.format(context=context[:500], question=query))
+            logger.info(f"  Resposta: {response.content[:200]}...")
+        
+        logger.info("\n✅ Testes concluídos com sucesso!")
+        logger.info("=" * 60)
+        
     except Exception as e:
-        print(f"Erro durante o teste do banco de dados: {str(e)}")
-        print(traceback.format_exc())
+        logger.error(f"❌ Erro durante testes: {e}")
+        logger.error(traceback.format_exc())
 
 if __name__ == "__main__":
-    main()
+    """
+    Execute como:
+        python create_db.py           # Criação normal com testes
+        python create_db.py --no-test # Sem testes (CI/CD)
+        python create_db.py --help    # Ajuda
+    """
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Criar/atualizar ChromaDB com embeddings de PDFs")
+    parser.add_argument('--no-test', action='store_true', help='Pular testes do banco')
+    args = parser.parse_args()
+    
+    success = main(skip_test=args.no_test)
+    
+    # Exit com código apropriado para CI/CD
+    sys.exit(0 if success else 1)
