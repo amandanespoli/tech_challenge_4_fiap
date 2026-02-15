@@ -1,4 +1,4 @@
-# Classificação de Doenças Pulmonares - Chatbot Multimodal
+# Classificação de Doenças Pulmonares - Chatbot Multimodal em Cloud
 
 Sistema de classificação automática de imagens de raio-X torácico utilizando Deep Learning com interface de chatbot multimodal.
 
