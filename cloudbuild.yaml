@@ -30,6 +30,7 @@ steps:
       # Injeta as chaves do Secret Manager (Segurança)
       - '--set-secrets'
       - 'OPENAI_API_KEY=OPENAI_API_KEY:latest'
+      - '--set-secrets'
       - 'GCS_BUCKET=GCS_BUCKET:latest'
 
 options:
